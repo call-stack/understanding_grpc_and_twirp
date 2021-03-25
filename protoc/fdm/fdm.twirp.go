@@ -41,6 +41,8 @@ const _ = twirp.TwirpPackageIsVersion7
 
 type FileDownloadManager interface {
 	Health(context.Context, *StatusMessage) (*StatusMessage, error)
+
+	Download(context.Context, *URLs) (*StatusMessage, error)
 }
 
 // ===================================
@@ -49,7 +51,7 @@ type FileDownloadManager interface {
 
 type fileDownloadManagerProtobufClient struct {
 	client      HTTPClient
-	urls        [1]string
+	urls        [2]string
 	interceptor twirp.Interceptor
 	opts        twirp.ClientOptions
 }
@@ -69,12 +71,14 @@ func NewFileDownloadManagerProtobufClient(baseURL string, client HTTPClient, opt
 	// Build method URLs: <baseURL>[<prefix>]/<package>.<Service>/<Method>
 	serviceURL := sanitizeBaseURL(baseURL)
 	serviceURL += baseServicePath(clientOpts.PathPrefix(), "protoc", "FileDownloadManager")
-	urls := [1]string{
+	urls := [2]string{
 		serviceURL + "Health",
+		serviceURL + "Download",
 	}
 	if clientOpts.LiteralURLs {
-		urls = [1]string{
+		urls = [2]string{
 			serviceURL + "health",
+			serviceURL + "download",
 		}
 	}
 
@@ -132,13 +136,59 @@ func (c *fileDownloadManagerProtobufClient) callHealth(ctx context.Context, in *
 	return out, nil
 }
 
+func (c *fileDownloadManagerProtobufClient) Download(ctx context.Context, in *URLs) (*StatusMessage, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "protoc")
+	ctx = ctxsetters.WithServiceName(ctx, "FileDownloadManager")
+	ctx = ctxsetters.WithMethodName(ctx, "Download")
+	caller := c.callDownload
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *URLs) (*StatusMessage, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*URLs)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*URLs) when calling interceptor")
+					}
+					return c.callDownload(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*StatusMessage)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*StatusMessage) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *fileDownloadManagerProtobufClient) callDownload(ctx context.Context, in *URLs) (*StatusMessage, error) {
+	out := new(StatusMessage)
+	ctx, err := doProtobufRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
 // ===============================
 // FileDownloadManager JSON Client
 // ===============================
 
 type fileDownloadManagerJSONClient struct {
 	client      HTTPClient
-	urls        [1]string
+	urls        [2]string
 	interceptor twirp.Interceptor
 	opts        twirp.ClientOptions
 }
@@ -158,12 +208,14 @@ func NewFileDownloadManagerJSONClient(baseURL string, client HTTPClient, opts ..
 	// Build method URLs: <baseURL>[<prefix>]/<package>.<Service>/<Method>
 	serviceURL := sanitizeBaseURL(baseURL)
 	serviceURL += baseServicePath(clientOpts.PathPrefix(), "protoc", "FileDownloadManager")
-	urls := [1]string{
+	urls := [2]string{
 		serviceURL + "Health",
+		serviceURL + "Download",
 	}
 	if clientOpts.LiteralURLs {
-		urls = [1]string{
+		urls = [2]string{
 			serviceURL + "health",
+			serviceURL + "download",
 		}
 	}
 
@@ -207,6 +259,52 @@ func (c *fileDownloadManagerJSONClient) Health(ctx context.Context, in *StatusMe
 func (c *fileDownloadManagerJSONClient) callHealth(ctx context.Context, in *StatusMessage) (*StatusMessage, error) {
 	out := new(StatusMessage)
 	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[0], in, out)
+	if err != nil {
+		twerr, ok := err.(twirp.Error)
+		if !ok {
+			twerr = twirp.InternalErrorWith(err)
+		}
+		callClientError(ctx, c.opts.Hooks, twerr)
+		return nil, err
+	}
+
+	callClientResponseReceived(ctx, c.opts.Hooks)
+
+	return out, nil
+}
+
+func (c *fileDownloadManagerJSONClient) Download(ctx context.Context, in *URLs) (*StatusMessage, error) {
+	ctx = ctxsetters.WithPackageName(ctx, "protoc")
+	ctx = ctxsetters.WithServiceName(ctx, "FileDownloadManager")
+	ctx = ctxsetters.WithMethodName(ctx, "Download")
+	caller := c.callDownload
+	if c.interceptor != nil {
+		caller = func(ctx context.Context, req *URLs) (*StatusMessage, error) {
+			resp, err := c.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*URLs)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*URLs) when calling interceptor")
+					}
+					return c.callDownload(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*StatusMessage)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*StatusMessage) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+	return caller(ctx, in)
+}
+
+func (c *fileDownloadManagerJSONClient) callDownload(ctx context.Context, in *URLs) (*StatusMessage, error) {
+	out := new(StatusMessage)
+	ctx, err := doJSONRequest(ctx, c.client, c.opts.Hooks, c.urls[1], in, out)
 	if err != nil {
 		twerr, ok := err.(twirp.Error)
 		if !ok {
@@ -307,6 +405,9 @@ func (s *fileDownloadManagerServer) ServeHTTP(resp http.ResponseWriter, req *htt
 	switch method {
 	case "health", "Health":
 		s.serveHealth(ctx, resp, req)
+		return
+	case "download", "Download":
+		s.serveDownload(ctx, resp, req)
 		return
 	default:
 		msg := fmt.Sprintf("no handler for path %q", req.URL.Path)
@@ -467,6 +568,181 @@ func (s *fileDownloadManagerServer) serveHealthProtobuf(ctx context.Context, res
 	}
 	if respContent == nil {
 		s.writeError(ctx, resp, twirp.InternalError("received a nil *StatusMessage and nil error while calling Health. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	respBytes, err := proto.Marshal(respContent)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal proto response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	resp.Header().Set("Content-Type", "application/protobuf")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *fileDownloadManagerServer) serveDownload(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	header := req.Header.Get("Content-Type")
+	i := strings.Index(header, ";")
+	if i == -1 {
+		i = len(header)
+	}
+	switch strings.TrimSpace(strings.ToLower(header[:i])) {
+	case "application/json":
+		s.serveDownloadJSON(ctx, resp, req)
+	case "application/protobuf":
+		s.serveDownloadProtobuf(ctx, resp, req)
+	default:
+		msg := fmt.Sprintf("unexpected Content-Type: %q", req.Header.Get("Content-Type"))
+		twerr := badRouteError(msg, req.Method, req.URL.Path)
+		s.writeError(ctx, resp, twerr)
+	}
+}
+
+func (s *fileDownloadManagerServer) serveDownloadJSON(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "Download")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	reqContent := new(URLs)
+	unmarshaler := jsonpb.Unmarshaler{AllowUnknownFields: true}
+	if err = unmarshaler.Unmarshal(req.Body, reqContent); err != nil {
+		s.writeError(ctx, resp, malformedRequestError("the json request could not be decoded"))
+		return
+	}
+
+	handler := s.FileDownloadManager.Download
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *URLs) (*StatusMessage, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*URLs)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*URLs) when calling interceptor")
+					}
+					return s.FileDownloadManager.Download(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*StatusMessage)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*StatusMessage) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *StatusMessage
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *StatusMessage and nil error while calling Download. nil responses are not supported"))
+		return
+	}
+
+	ctx = callResponsePrepared(ctx, s.hooks)
+
+	var buf bytes.Buffer
+	marshaler := &jsonpb.Marshaler{OrigName: true, EmitDefaults: !s.jsonSkipDefaults}
+	if err = marshaler.Marshal(&buf, respContent); err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to marshal json response"))
+		return
+	}
+
+	ctx = ctxsetters.WithStatusCode(ctx, http.StatusOK)
+	respBytes := buf.Bytes()
+	resp.Header().Set("Content-Type", "application/json")
+	resp.Header().Set("Content-Length", strconv.Itoa(len(respBytes)))
+	resp.WriteHeader(http.StatusOK)
+
+	if n, err := resp.Write(respBytes); err != nil {
+		msg := fmt.Sprintf("failed to write response, %d of %d bytes written: %s", n, len(respBytes), err.Error())
+		twerr := twirp.NewError(twirp.Unknown, msg)
+		ctx = callError(ctx, s.hooks, twerr)
+	}
+	callResponseSent(ctx, s.hooks)
+}
+
+func (s *fileDownloadManagerServer) serveDownloadProtobuf(ctx context.Context, resp http.ResponseWriter, req *http.Request) {
+	var err error
+	ctx = ctxsetters.WithMethodName(ctx, "Download")
+	ctx, err = callRequestRouted(ctx, s.hooks)
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+
+	buf, err := ioutil.ReadAll(req.Body)
+	if err != nil {
+		s.writeError(ctx, resp, wrapInternal(err, "failed to read request body"))
+		return
+	}
+	reqContent := new(URLs)
+	if err = proto.Unmarshal(buf, reqContent); err != nil {
+		s.writeError(ctx, resp, malformedRequestError("the protobuf request could not be decoded"))
+		return
+	}
+
+	handler := s.FileDownloadManager.Download
+	if s.interceptor != nil {
+		handler = func(ctx context.Context, req *URLs) (*StatusMessage, error) {
+			resp, err := s.interceptor(
+				func(ctx context.Context, req interface{}) (interface{}, error) {
+					typedReq, ok := req.(*URLs)
+					if !ok {
+						return nil, twirp.InternalError("failed type assertion req.(*URLs) when calling interceptor")
+					}
+					return s.FileDownloadManager.Download(ctx, typedReq)
+				},
+			)(ctx, req)
+			if resp != nil {
+				typedResp, ok := resp.(*StatusMessage)
+				if !ok {
+					return nil, twirp.InternalError("failed type assertion resp.(*StatusMessage) when calling interceptor")
+				}
+				return typedResp, err
+			}
+			return nil, err
+		}
+	}
+
+	// Call service method
+	var respContent *StatusMessage
+	func() {
+		defer ensurePanicResponses(ctx, resp, s.hooks)
+		respContent, err = handler(ctx, reqContent)
+	}()
+
+	if err != nil {
+		s.writeError(ctx, resp, err)
+		return
+	}
+	if respContent == nil {
+		s.writeError(ctx, resp, twirp.InternalError("received a nil *StatusMessage and nil error while calling Download. nil responses are not supported"))
 		return
 	}
 
@@ -1052,14 +1328,16 @@ func callClientError(ctx context.Context, h *twirp.ClientHooks, err twirp.Error)
 }
 
 var twirpFileDescriptor0 = []byte{
-	// 131 bytes of a gzipped FileDescriptorProto
+	// 171 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0x12, 0x28, 0x28, 0xca, 0x2f,
 	0xc9, 0x4f, 0xd6, 0x4f, 0x4b, 0xc9, 0xd5, 0x03, 0x33, 0x85, 0xd8, 0x20, 0x22, 0x4a, 0xca, 0x5c,
 	0xbc, 0xc1, 0x25, 0x89, 0x25, 0xa5, 0xc5, 0xbe, 0xa9, 0xc5, 0xc5, 0x89, 0xe9, 0xa9, 0x42, 0x42,
-	0x5c, 0x2c, 0x49, 0xf9, 0x29, 0x95, 0x12, 0x8c, 0x0a, 0x8c, 0x1a, 0x9c, 0x41, 0x60, 0xb6, 0x91,
-	0x2f, 0x97, 0xb0, 0x5b, 0x66, 0x4e, 0xaa, 0x4b, 0x7e, 0x79, 0x5e, 0x4e, 0x7e, 0x62, 0x8a, 0x6f,
-	0x62, 0x5e, 0x62, 0x7a, 0x6a, 0x91, 0x90, 0x19, 0x17, 0x5b, 0x46, 0x6a, 0x62, 0x4e, 0x49, 0x86,
-	0x90, 0x28, 0xc4, 0xd4, 0x64, 0x3d, 0x14, 0xb3, 0xa4, 0xb0, 0x0b, 0x3b, 0xf1, 0x44, 0x71, 0x21,
-	0xdc, 0x93, 0x04, 0x71, 0x89, 0x31, 0x20, 0x00, 0x00, 0xff, 0xff, 0x67, 0x6c, 0x41, 0x83, 0xa4,
-	0x00, 0x00, 0x00,
+	0x5c, 0x2c, 0x49, 0xf9, 0x29, 0x95, 0x12, 0x8c, 0x0a, 0x8c, 0x1a, 0x9c, 0x41, 0x60, 0xb6, 0x92,
+	0x04, 0x17, 0x4b, 0x68, 0x90, 0x4f, 0xb1, 0x90, 0x00, 0x17, 0x73, 0x69, 0x51, 0x8e, 0x04, 0xa3,
+	0x02, 0xb3, 0x06, 0x67, 0x10, 0x88, 0x69, 0x54, 0xc7, 0x25, 0xec, 0x96, 0x99, 0x93, 0xea, 0x92,
+	0x5f, 0x9e, 0x97, 0x93, 0x9f, 0x98, 0xe2, 0x9b, 0x98, 0x97, 0x98, 0x9e, 0x5a, 0x24, 0x64, 0xc6,
+	0xc5, 0x96, 0x91, 0x9a, 0x98, 0x53, 0x92, 0x21, 0x24, 0x0a, 0xb1, 0x2f, 0x59, 0x0f, 0xc5, 0x16,
+	0x29, 0xec, 0xc2, 0x42, 0xfa, 0x5c, 0x1c, 0x29, 0x50, 0xa3, 0x84, 0x78, 0x60, 0x4a, 0x40, 0x56,
+	0xe3, 0xd0, 0xe0, 0xc4, 0x13, 0xc5, 0x85, 0xf0, 0x5a, 0x12, 0xc4, 0x53, 0xc6, 0x80, 0x00, 0x00,
+	0x00, 0xff, 0xff, 0x34, 0x49, 0x9c, 0xd0, 0xef, 0x00, 0x00, 0x00,
 }
