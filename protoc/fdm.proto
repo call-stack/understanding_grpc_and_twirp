@@ -1,0 +1,11 @@
+syntax = "proto3";
+package protoc;
+option go_package = "protoc/fdm";
+
+service FileDownloadManager {
+  rpc health(StatusMessage) returns (StatusMessage);
+}
+
+message StatusMessage{
+    string body = 1;
+}
